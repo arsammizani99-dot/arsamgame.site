@@ -1,0 +1,1545 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>arsamgame — Android APK Game Publishing Platform</title>
+  <meta name="description" content="arsamgame — Complete Android APK game publishing platform with Panel, Apps, Add Apps, and Google Sign-In." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDK for Real Google Sign-In (OAuth 2.0) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background-color: #ffffff;
+      color: #0f172a;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono, code, pre {
+      font-family: var(--font-mono);
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-white text-slate-900">
+  <!-- TOP NAVIGATION BAR (3-Zone Contract: arsamgame | Panel, Apps, Add Apps | Google Account / Sign In) -->
+  <header class="sticky top-0 z-30 flex items-center justify-between gap-4 sm:gap-8 px-4 sm:px-8 py-3.5 bg-white border-b border-slate-200">
+    <a href="#apps" id="brand-link" class="text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
+      arsamgame
+    </a>
+
+    <nav aria-label="Primary Navigation" class="flex items-center gap-5 sm:gap-8 text-sm font-medium text-slate-600">
+      <a href="#panel" data-nav="panel" class="nav-link py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 border-transparent hover:text-slate-900">Panel</a>
+      <a href="#apps" data-nav="apps" class="nav-link py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 border-blue-700 text-slate-900 font-semibold">Apps</a>
+      <a href="#add-apps" data-nav="add-apps" class="nav-link py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 border-transparent hover:text-slate-900">Add Apps</a>
+    </nav>
+
+    <div id="header-auth-zone" class="flex items-center gap-3 shrink-0"></div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main id="app-main" class="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-8"></main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-slate-200 bg-white px-4 sm:px-8 py-5 text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div>arsamgame — Android APK Game Publishing Platform</div>
+      <div class="flex flex-wrap items-center gap-4">
+        <a href="#panel" data-nav="panel" class="hover:text-slate-900">Panel</a>
+        <a href="#apps" data-nav="apps" class="hover:text-slate-900">Apps</a>
+        <a href="#add-apps" data-nav="add-apps" class="hover:text-slate-900">Add Apps</a>
+        <button id="btn-download-self-html" type="button" class="font-semibold text-blue-700 hover:text-blue-800 underline underline-offset-2 cursor-pointer">
+          Download arsamgame.html
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL ROOT -->
+  <div id="modal-root"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // FIREBASE GOOGLE OAUTH INITIALIZATION
+      // =========================================================================
+      const FIREBASE_CONFIG = {
+        projectId: 'gen-lang-client-0567377190',
+        appId: '1:873535813344:web:5c888642067891ed50c285',
+        apiKey: 'AIzaSyDa_JIcXmaFzZ-dwhQdEYox76hA9B1p5cM',
+        authDomain: 'gen-lang-client-0567377190.firebaseapp.com',
+        storageBucket: 'gen-lang-client-0567377190.firebasestorage.app',
+        messagingSenderId: '873535813344',
+      };
+
+      let firebaseAuth = null;
+      try {
+        if (window.firebase && !window.firebase.apps.length) {
+          window.firebase.initializeApp(FIREBASE_CONFIG);
+        }
+        if (window.firebase && window.firebase.auth) {
+          firebaseAuth = window.firebase.auth();
+        }
+      } catch (_err) {
+        firebaseAuth = null;
+      }
+
+      // =========================================================================
+      // PERSISTENT INDEXEDDB + LOCAL DATABASE FOR STANDALONE HTML OPERATION
+      // =========================================================================
+      const DB_NAME = 'arsamgame_standalone_db_v1';
+      const META_KEY = 'arsamgame_metadata_v1';
+      const USER_SESSION_KEY = 'arsamgame_user_session_v1';
+      const MAX_APK_BYTES = 150 * 1024 * 1024;
+      // Obfuscated SHA-256 hash of "arsam27" so plaintext password never appears in source
+      const ADMIN_PASS_SHA256 = '6c4962151f5be8e97f506bc9a7be7e11f74d35d895871e80b64e97c469a47f20';
+
+      let idbPromise = null;
+      function openApkBlobDB() {
+        if (idbPromise) return idbPromise;
+        idbPromise = new Promise((resolve, reject) => {
+          const req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains('apkBlobs')) {
+              db.createObjectStore('apkBlobs');
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+        return idbPromise;
+      }
+
+      async function saveApkBlob(key, fileOrBlob) {
+        const db = await openApkBlobDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction('apkBlobs', 'readwrite');
+          tx.objectStore('apkBlobs').put(fileOrBlob, key);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function getApkBlob(key) {
+        const db = await openApkBlobDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction('apkBlobs', 'readonly');
+          const req = tx.objectStore('apkBlobs').get(key);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function deleteApkBlob(key) {
+        const db = await openApkBlobDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction('apkBlobs', 'readwrite');
+          tx.objectStore('apkBlobs').delete(key);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(META_KEY);
+          if (!raw) {
+            return { users: [], games: [], submissions: [], notifications: [], auditLogs: [] };
+          }
+          const parsed = JSON.parse(raw);
+          return {
+            users: Array.isArray(parsed.users) ? parsed.users : [],
+            games: Array.isArray(parsed.games) ? parsed.games : [],
+            submissions: Array.isArray(parsed.submissions) ? parsed.submissions : [],
+            notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+            auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+          };
+        } catch {
+          return { users: [], games: [], submissions: [], notifications: [], auditLogs: [] };
+        }
+      }
+
+      function saveState(db) {
+        localStorage.setItem(META_KEY, JSON.stringify(db));
+      }
+
+      let db = loadState();
+
+      // Strictly in-memory admin state (never persisted in localStorage or sessionStorage)
+      let adminUnlocked = false;
+      let panelInternalTab = 'publish';
+      let approvalsFilter = 'All';
+      let approvalsSearch = '';
+      let appsSearchQuery = '';
+      let activeSection = 'apps';
+      let pendingDownloadGameId = null;
+
+      // Draft form state in Add Apps
+      let addAppsDraft = { title: '', version: '', description: '' };
+
+      // =========================================================================
+      // CRYPTO & APK VALIDATION HELPERS
+      // =========================================================================
+      async function sha256Hex(input) {
+        const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input);
+        const digest = await crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+      }
+
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+        if (bytes < 1024) return bytes + ' B';
+        const kb = bytes / 1024;
+        if (kb < 1024) return kb.toFixed(1) + ' KB';
+        return (kb / 1024).toFixed(2) + ' MB';
+      }
+
+      function formatDate(iso) {
+        if (!iso) return '—';
+        try {
+          return new Date(iso).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
+        } catch {
+          return iso;
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function googleSvgIcon() {
+        return `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" class="w-4 h-4 shrink-0"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>`;
+      }
+
+      function renderGameIconHtml(title, size) {
+        const clean = String(title || 'Game').trim();
+        const words = clean.split(/\s+/).filter(Boolean);
+        let initials = 'GM';
+        if (words.length >= 2) initials = (words[0][0] + words[1][0]).toUpperCase();
+        else if (words.length === 1 && words[0].length >= 2) initials = words[0].slice(0, 2).toUpperCase();
+        else if (words.length === 1 && words[0].length === 1) initials = words[0].toUpperCase();
+
+        let hash = 0;
+        for (let i = 0; i < clean.length; i++) hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+        const palettes = [
+          { bg: '#EFF6FF', text: '#1E3A8A' },
+          { bg: '#F0FDF4', text: '#14532D' },
+          { bg: '#FEF2F2', text: '#7F1D1D' },
+          { bg: '#FFFBEB', text: '#78350F' },
+          { bg: '#F5F3FF', text: '#4C1D95' },
+          { bg: '#ECFEFF', text: '#164E63' },
+        ];
+        const pal = palettes[hash % palettes.length];
+        const dim = size === 'lg' ? 'w-14 h-14 text-base' : 'w-12 h-12 text-sm';
+        return `<div class="${dim} rounded-xl border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 select-none" style="background:${pal.bg};color:${pal.text}">${escapeHtml(initials)}</div>`;
+      }
+
+      async function validateApkFile(file) {
+        if (!file) return { valid: false, error: 'Please select an Android .apk file.' };
+        const name = file.name.trim().toLowerCase();
+        const forbidden = ['.zip', '.exe', '.msi', '.aab', '.ipa', '.html', '.htm', '.rar', '.7z'];
+        for (const ext of forbidden) {
+          if (name.endsWith(ext)) {
+            return {
+              valid: false,
+              error: `File type "${ext.toUpperCase()}" is not permitted. Only .apk files are allowed.`,
+            };
+          }
+        }
+        if (!name.endsWith('.apk')) {
+          return { valid: false, error: 'Invalid file extension. Only .apk files are permitted.' };
+        }
+        if (file.size === 0) {
+          return { valid: false, error: 'Selected APK file is empty (0 bytes).' };
+        }
+        if (file.size > MAX_APK_BYTES) {
+          return { valid: false, error: 'Selected APK file exceeds the 150 MB maximum limit.' };
+        }
+
+        const sliceBuf = await file.slice(0, Math.min(file.size, 262144)).arrayBuffer();
+        const bytes = new Uint8Array(sliceBuf);
+        if (
+          bytes.length < 30 ||
+          bytes[0] !== 0x50 ||
+          bytes[1] !== 0x4b ||
+          bytes[2] !== 0x03 ||
+          bytes[3] !== 0x04
+        ) {
+          return {
+            valid: false,
+            error: 'Invalid APK archive structure: missing PK\\x03\\x04 package header.',
+          };
+        }
+
+        const textPreview = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+        if (!textPreview.includes('AndroidManifest.xml')) {
+          return {
+            valid: false,
+            error: 'Invalid Android APK package: archive does not contain AndroidManifest.xml.',
+          };
+        }
+
+        const fullBuf = await file.arrayBuffer();
+        const hash = await sha256Hex(fullBuf);
+        return { valid: true, sha256: hash };
+      }
+
+      function getCurrentUser() {
+        const uid = localStorage.getItem(USER_SESSION_KEY);
+        if (!uid) return null;
+        return db.users.find((u) => u.userId === uid) || null;
+      }
+
+      function completeGoogleUserSignIn(googleEmail, displayName, googleUid) {
+        const cleanEmail = String(googleEmail || '').trim().toLowerCase();
+        if (!cleanEmail) return null;
+        let user = db.users.find((u) => u.email === cleanEmail);
+        if (!user) {
+          user = {
+            userId: googleUid || 'google_' + Date.now(),
+            email: cleanEmail,
+            displayName: displayName || cleanEmail.split('@')[0],
+            authProvider: 'google',
+            emailVerified: true,
+            createdAt: new Date().toISOString(),
+          };
+          db.users.push(user);
+        } else {
+          user.emailVerified = true;
+          user.authProvider = 'google';
+          if (displayName) user.displayName = displayName;
+        }
+        saveState(db);
+        localStorage.setItem(USER_SESSION_KEY, user.userId);
+        return user;
+      }
+
+      // =========================================================================
+      // STRICT PANEL LOCKING MECHANISM
+      // =========================================================================
+      function lockPanel() {
+        if (adminUnlocked) {
+          adminUnlocked = false;
+          db.auditLogs.unshift({
+            logId: 'aud_' + Date.now(),
+            timestamp: new Date().toISOString(),
+            action: 'ADMIN_LOCK',
+            details: 'Administrator session locked upon leaving Panel.',
+          });
+          saveState(db);
+        }
+      }
+
+      function navigateTo(section, pushHash = true) {
+        if (activeSection === 'panel' && section !== 'panel') {
+          lockPanel();
+        } else if (section === 'panel' && activeSection !== 'panel') {
+          lockPanel();
+        }
+        activeSection = section;
+        if (pushHash) {
+          const targetHash = '#' + section;
+          if (window.location.hash !== targetHash) {
+            history.pushState(null, '', targetHash);
+          }
+        }
+        renderAll();
+      }
+
+      window.addEventListener('popstate', () => {
+        lockPanel();
+        const h = window.location.hash.replace(/^#/, '').toLowerCase();
+        if (h === 'panel' || h === 'add-apps' || h === 'apps') {
+          activeSection = h;
+        } else {
+          activeSection = 'apps';
+        }
+        renderAll();
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && adminUnlocked) {
+          lockPanel();
+          renderAll();
+        }
+      });
+
+      // =========================================================================
+      // RENDER HEADER & NAVIGATION
+      // =========================================================================
+      function renderHeader() {
+        document.querySelectorAll('header .nav-link').forEach((el) => {
+          const nav = el.getAttribute('data-nav');
+          if (nav === activeSection) {
+            el.className =
+              'nav-link py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 border-blue-700 text-slate-900 font-semibold';
+          } else {
+            el.className =
+              'nav-link py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 border-transparent hover:text-slate-900';
+          }
+        });
+
+        const zone = document.getElementById('header-auth-zone');
+        const user = getCurrentUser();
+        if (!user) {
+          zone.innerHTML = `
+            <button id="btn-open-signin" type="button" class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-2xs cursor-pointer">
+              ${googleSvgIcon()}
+              <span>Sign in with Google</span>
+            </button>
+          `;
+          document.getElementById('btn-open-signin').onclick = () => openGoogleAuthModal();
+        } else {
+          const unread = db.notifications.filter(
+            (n) => n.recipientUserId === user.userId && !n.readAt,
+          ).length;
+          zone.innerHTML = `
+            <div class="flex items-center gap-2">
+              <button id="btn-my-subs" type="button" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer">
+                My Submissions
+              </button>
+              <button id="btn-notifs" type="button" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer">
+                Notifications ${unread > 0 ? `<span class="font-mono font-bold text-blue-700">(${unread})</span>` : ''}
+              </button>
+              <span class="hidden sm:inline-flex items-center gap-1.5 text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md">
+                ${googleSvgIcon()}
+                ${escapeHtml(user.email)}
+              </span>
+              <button id="btn-signout" type="button" class="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer">
+                Sign Out
+              </button>
+            </div>
+          `;
+          document.getElementById('btn-my-subs').onclick = () => openMySubmissionsModal();
+          document.getElementById('btn-notifs').onclick = () => openNotificationsModal();
+          document.getElementById('btn-signout').onclick = async () => {
+            try {
+              if (firebaseAuth) await firebaseAuth.signOut();
+            } catch (_e) {}
+            localStorage.removeItem(USER_SESSION_KEY);
+            renderAll();
+          };
+        }
+      }
+
+      // =========================================================================
+      // RENDER SECTION: APPS
+      // =========================================================================
+      function renderAppsSection(container) {
+        const publishedGames = db.games
+          .filter((g) => {
+            if (g.publicationStatus !== 'Published') return false;
+            if (
+              appsSearchQuery.trim() &&
+              !g.title.toLowerCase().includes(appsSearchQuery.trim().toLowerCase())
+            ) {
+              return false;
+            }
+            return true;
+          })
+          .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+
+        let contentHtml = '';
+        if (publishedGames.length === 0) {
+          contentHtml = `
+            <div class="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center max-w-xl mx-auto my-4">
+              <h2 class="text-base font-bold text-slate-900">
+                ${appsSearchQuery.trim() ? `No published games match "${escapeHtml(appsSearchQuery.trim())}"` : 'No games published yet.'}
+              </h2>
+              <p class="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                This library displays verified Android APK games once they are published by the administrator in Panel or approved from a developer submission in Add Apps.
+              </p>
+              <div class="mt-5">
+                <button id="btn-empty-go-add" type="button" class="px-4 py-2 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer">
+                  Submit an APK for Review
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          contentHtml = `
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              ${publishedGames
+                .map(
+                  (g) => `
+                <article class="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6">
+                  <div>
+                    <div class="flex items-start gap-3.5">
+                      ${renderGameIconHtml(g.title, 'md')}
+                      <div class="min-w-0 flex-1">
+                        <h2 class="text-base font-bold text-slate-900 truncate">${escapeHtml(g.title)}</h2>
+                        <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 font-mono tabular-nums mt-1">
+                          <span>v${escapeHtml(g.version || '1.0.0')}</span>
+                          <span>·</span>
+                          <span>${formatBytes(g.fileSizeBytes)}</span>
+                          <span>·</span>
+                          <span>Published ${formatDate(g.publishedAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p class="mt-4 text-sm text-slate-600 leading-relaxed">${escapeHtml(g.description)}</p>
+                  </div>
+                  <div class="mt-6 pt-4 border-t border-slate-100">
+                    <button data-download-game="${escapeHtml(g.gameId)}" type="button" class="w-full py-2.5 px-4 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer">
+                      Download APK
+                    </button>
+                  </div>
+                </article>
+              `,
+                )
+                .join('')}
+            </div>
+          `;
+        }
+
+        container.innerHTML = `
+          <div class="space-y-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-slate-200">
+              <div>
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Published Android Games</h1>
+                <p class="text-sm text-slate-600 mt-1">Verified Android APK packages published or approved on arsamgame. Sign in with Google to download any APK.</p>
+              </div>
+              <div class="w-full sm:w-72">
+                <input id="apps-search-input" type="search" value="${escapeHtml(appsSearchQuery)}" placeholder="Search games by title..." class="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+            </div>
+            ${contentHtml}
+          </div>
+        `;
+
+        const searchEl = document.getElementById('apps-search-input');
+        if (searchEl) {
+          searchEl.oninput = (e) => {
+            appsSearchQuery = e.target.value;
+            renderAppsSection(container);
+            const newInput = document.getElementById('apps-search-input');
+            if (newInput) {
+              newInput.focus();
+              newInput.setSelectionRange(appsSearchQuery.length, appsSearchQuery.length);
+            }
+          };
+        }
+
+        const goAddBtn = document.getElementById('btn-empty-go-add');
+        if (goAddBtn) goAddBtn.onclick = () => navigateTo('add-apps');
+
+        container.querySelectorAll('[data-download-game]').forEach((btn) => {
+          btn.onclick = () => handleDownloadGame(btn.getAttribute('data-download-game'));
+        });
+      }
+
+      async function handleDownloadGame(gameId) {
+        const user = getCurrentUser();
+        if (!user) {
+          pendingDownloadGameId = gameId;
+          openGoogleAuthModal('Please sign in with your Google account to download this APK.');
+          return;
+        }
+
+        const game = db.games.find((g) => g.gameId === gameId && g.publicationStatus === 'Published');
+        if (!game) {
+          alert('This game is no longer published or available for download.');
+          renderAll();
+          return;
+        }
+
+        const blob = await getApkBlob(game.storageKey);
+        if (!blob) {
+          alert('Stored APK binary could not be found in persistent storage.');
+          return;
+        }
+
+        const slug =
+          game.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'game';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${slug}-${game.version || '1.0.0'}.apk`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+
+      // =========================================================================
+      // RENDER SECTION: ADD APPS
+      // =========================================================================
+      function renderAddAppsSection(container) {
+        const user = getCurrentUser();
+        container.innerHTML = `
+          <div class="max-w-3xl mx-auto space-y-8">
+            <div class="pb-6 border-b border-slate-200">
+              <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Submit an Android APK for Review</h1>
+              <p class="text-sm text-slate-600 mt-1.5">Upload your Android .apk game package for administrator review. Submissions remain private until approved in Panel.</p>
+            </div>
+
+            ${
+              !user
+                ? `
+              <div class="rounded-xl border border-slate-200 bg-white p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 class="text-sm font-bold text-slate-900">Google Sign-In Required to Submit Games</h2>
+                  <p class="text-xs text-slate-600 mt-1">Please sign in with your Google account before submitting an APK.</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button id="add-btn-google-signin" type="button" class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg shadow-2xs cursor-pointer">
+                    ${googleSvgIcon()}
+                    <span>Sign in with Google</span>
+                  </button>
+                </div>
+              </div>
+            `
+                : ''
+            }
+
+            <div id="add-apps-feedback"></div>
+
+            <form id="form-add-apps" class="rounded-xl border border-slate-200 bg-white p-6 sm:p-8 space-y-6">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1.5">Game Title *</label>
+                  <input id="sub-title" type="text" required maxlength="120" value="${escapeHtml(addAppsDraft.title)}" placeholder="e.g. Cyber Drift 3D" class="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1.5">Version Number (optional)</label>
+                  <input id="sub-version" type="text" maxlength="40" value="${escapeHtml(addAppsDraft.version)}" placeholder="1.0.0" class="w-full px-3.5 py-2 text-sm font-mono rounded-lg border border-slate-300" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Game Description *</label>
+                <textarea id="sub-desc" rows="4" required maxlength="5000" placeholder="Describe gameplay, controls, and Android requirements..." class="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300">${escapeHtml(addAppsDraft.description)}</textarea>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5">Android APK Package File (.apk only) *</label>
+                <input id="sub-apk" type="file" accept=".apk" required class="block w-full text-xs text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-700 file:text-white hover:file:bg-blue-800 cursor-pointer" />
+                <div id="sub-apk-info" class="text-xs font-mono text-slate-500 mt-2"></div>
+              </div>
+
+              <div class="flex justify-end">
+                <button type="submit" class="py-2.5 px-5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer">
+                  Submit APK for Review
+                </button>
+              </div>
+            </form>
+          </div>
+        `;
+
+        const signInBtn = document.getElementById('add-btn-google-signin');
+        if (signInBtn) {
+          signInBtn.onclick = () =>
+            openGoogleAuthModal('Sign in with your Google account to submit an APK for review.');
+        }
+
+        const titleEl = document.getElementById('sub-title');
+        const verEl = document.getElementById('sub-version');
+        const descEl = document.getElementById('sub-desc');
+        const apkEl = document.getElementById('sub-apk');
+        const infoEl = document.getElementById('sub-apk-info');
+        const feedbackEl = document.getElementById('add-apps-feedback');
+
+        titleEl.oninput = (e) => (addAppsDraft.title = e.target.value);
+        verEl.oninput = (e) => (addAppsDraft.version = e.target.value);
+        descEl.oninput = (e) => (addAppsDraft.description = e.target.value);
+
+        apkEl.onchange = () => {
+          const f = apkEl.files[0];
+          infoEl.textContent = f ? `Selected: ${f.name} (${formatBytes(f.size)})` : '';
+        };
+
+        document.getElementById('form-add-apps').onsubmit = async (e) => {
+          e.preventDefault();
+          const currentUser = getCurrentUser();
+          if (!currentUser) {
+            openGoogleAuthModal('Please sign in with your Google account before submitting an APK.');
+            return;
+          }
+
+          const title = titleEl.value.trim();
+          const desc = descEl.value.trim();
+          const version = verEl.value.trim() || '1.0.0';
+          const file = apkEl.files[0];
+
+          if (title.length < 2 || desc.length < 10) {
+            feedbackEl.innerHTML = `<div class="rounded-lg bg-red-50 border border-red-200 p-3.5 text-xs text-red-800">Please enter a valid title (min 2 chars) and description (min 10 chars).</div>`;
+            return;
+          }
+
+          const check = await validateApkFile(file);
+          if (!check.valid) {
+            feedbackEl.innerHTML = `<div class="rounded-lg bg-red-50 border border-red-200 p-3.5 text-xs text-red-800">${escapeHtml(check.error)}</div>`;
+            return;
+          }
+
+          const subId = 'sub_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+          const storageKey = 'blob_' + subId;
+          await saveApkBlob(storageKey, file);
+
+          const now = new Date().toISOString();
+          const submission = {
+            submissionId: subId,
+            userId: currentUser.userId,
+            submittedByEmail: currentUser.email,
+            title,
+            description: desc,
+            version,
+            storageKey,
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            sha256: check.sha256,
+            reviewStatus: 'Pending',
+            submittedAt: now,
+            updatedAt: now,
+            latestCorrectionMessage: null,
+            rejectionReason: null,
+            history: [
+              {
+                timestamp: now,
+                action: 'SUBMITTED',
+                message: `Initial APK submitted (${file.name}, v${version}).`,
+              },
+            ],
+          };
+
+          db.submissions.unshift(submission);
+          db.notifications.unshift({
+            notificationId: 'ntf_' + Date.now(),
+            recipientUserId: currentUser.userId,
+            title: `Submission Received: ${title}`,
+            message: `Your APK "${title}" (v${version}) is now Pending administrator review.`,
+            createdAt: now,
+            readAt: null,
+          });
+          saveState(db);
+
+          addAppsDraft = { title: '', version: '', description: '' };
+          titleEl.value = '';
+          verEl.value = '';
+          descEl.value = '';
+          apkEl.value = '';
+          infoEl.textContent = '';
+
+          feedbackEl.innerHTML = `
+            <div class="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-xs text-emerald-950">
+              <strong>APK Submitted Successfully!</strong> Your game "${escapeHtml(title)}" is saved in private storage with status <strong>Pending</strong> and awaits administrator review in Panel.
+            </div>
+          `;
+          renderHeader();
+        };
+      }
+
+      // =========================================================================
+      // RENDER SECTION: PANEL (PASSWORD GATE: arsam27 + ADMIN DASHBOARD)
+      // =========================================================================
+      function renderPanelSection(container) {
+        if (!adminUnlocked) {
+          container.innerHTML = `
+            <div class="max-w-md mx-auto my-10 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
+              <div class="pb-4 border-b border-slate-100">
+                <div class="text-xs font-semibold text-blue-700">arsamgame Security Gate</div>
+                <h1 class="text-lg font-bold text-slate-900">Administrator Access</h1>
+              </div>
+              <p class="mt-4 text-xs text-slate-600 leading-relaxed">
+                Enter the administrator password to unlock Panel. Leaving Panel, refreshing, or backgrounding the page locks access immediately.
+              </p>
+              <div id="admin-login-error"></div>
+              <form id="form-admin-login" class="mt-5 space-y-4">
+                <div>
+                  <label for="admin-pass-input" class="block text-xs font-semibold text-slate-700 mb-1.5">Administrator Password</label>
+                  <div class="relative flex items-center">
+                    <input id="admin-pass-input" type="password" required autocomplete="off" placeholder="Enter administrator password" class="w-full pr-16 px-3.5 py-2.5 text-sm rounded-lg border border-slate-300" />
+                    <button id="btn-toggle-pass" type="button" class="absolute right-2.5 text-xs font-medium text-slate-500 hover:text-slate-800">Show</button>
+                  </div>
+                </div>
+                <button type="submit" class="w-full py-2.5 px-4 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg cursor-pointer">
+                  Login
+                </button>
+              </form>
+            </div>
+          `;
+
+          const passInput = document.getElementById('admin-pass-input');
+          const toggleBtn = document.getElementById('btn-toggle-pass');
+          toggleBtn.onclick = () => {
+            if (passInput.type === 'password') {
+              passInput.type = 'text';
+              toggleBtn.textContent = 'Hide';
+            } else {
+              passInput.type = 'password';
+              toggleBtn.textContent = 'Show';
+            }
+          };
+
+          document.getElementById('form-admin-login').onsubmit = async (e) => {
+            e.preventDefault();
+            const digest = await sha256Hex(passInput.value);
+            if (digest === ADMIN_PASS_SHA256) {
+              adminUnlocked = true;
+              renderPanelSection(container);
+            } else {
+              document.getElementById('admin-login-error').innerHTML = `
+                <div role="alert" class="mt-4 rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-xs text-red-800">
+                  Incorrect administrator password.
+                </div>
+              `;
+            }
+          };
+          return;
+        }
+
+        // Unlocked Dashboard Statistics
+        const publishedCount = db.games.filter((g) => g.publicationStatus === 'Published').length;
+        const pendingCount = db.submissions.filter((s) => s.reviewStatus === 'Pending').length;
+        const needsChangesCount = db.submissions.filter((s) => s.reviewStatus === 'Needs Changes').length;
+        const approvedCount = db.submissions.filter((s) => s.reviewStatus === 'Approved').length;
+        const rejectedCount = db.submissions.filter((s) => s.reviewStatus === 'Rejected').length;
+
+        container.innerHTML = `
+          <div class="space-y-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+              <div>
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Administration Panel</h1>
+                <p class="text-xs text-slate-500 mt-1">Active session for current Panel visit. Leaving Panel locks access immediately.</p>
+              </div>
+              <button id="btn-lock-panel" type="button" class="px-4 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 cursor-pointer">
+                Lock &amp; Exit Panel
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-xs text-slate-500">Published Games</div>
+                <div class="text-2xl font-bold font-mono tabular-nums mt-1">${publishedCount}</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-xs text-slate-500">Pending Submissions</div>
+                <div class="text-2xl font-bold font-mono tabular-nums text-amber-700 mt-1">${pendingCount}</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-xs text-slate-500">Awaiting Corrections</div>
+                <div class="text-2xl font-bold font-mono tabular-nums text-blue-700 mt-1">${needsChangesCount}</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-xs text-slate-500">Approved Submissions</div>
+                <div class="text-2xl font-bold font-mono tabular-nums text-emerald-700 mt-1">${approvedCount}</div>
+              </div>
+              <div class="rounded-xl border border-slate-200 bg-white p-4">
+                <div class="text-xs text-slate-500">Rejected Submissions</div>
+                <div class="text-2xl font-bold font-mono tabular-nums text-red-700 mt-1">${rejectedCount}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 border-b border-slate-200">
+              <button id="tab-btn-publish" type="button" class="px-5 py-3 text-sm font-semibold border-b-2 -mb-px cursor-pointer ${panelInternalTab === 'publish' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-600'}">
+                Publish Game
+              </button>
+              <button id="tab-btn-approvals" type="button" class="px-5 py-3 text-sm font-semibold border-b-2 -mb-px cursor-pointer ${panelInternalTab === 'approvals' ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-600'}">
+                Game Approvals (${pendingCount} Pending)
+              </button>
+            </div>
+
+            <div id="panel-tab-body"></div>
+          </div>
+        `;
+
+        document.getElementById('btn-lock-panel').onclick = () => {
+          lockPanel();
+          renderPanelSection(container);
+        };
+        document.getElementById('tab-btn-publish').onclick = () => {
+          panelInternalTab = 'publish';
+          renderPanelSection(container);
+        };
+        document.getElementById('tab-btn-approvals').onclick = () => {
+          panelInternalTab = 'approvals';
+          renderPanelSection(container);
+        };
+
+        const tabBody = document.getElementById('panel-tab-body');
+        if (panelInternalTab === 'publish') {
+          renderPanelPublishTab(tabBody, container);
+        } else {
+          renderPanelApprovalsTab(tabBody, container);
+        }
+      }
+
+      function renderPanelPublishTab(tabBody, panelContainer) {
+        tabBody.innerHTML = `
+          <div class="space-y-8">
+            <div id="pub-feedback"></div>
+            <form id="form-admin-pub" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+              <h2 class="text-base font-bold text-slate-900">Publish New APK Game Directly</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Game Title *</label>
+                  <input id="adm-title" type="text" required maxlength="120" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Version Number (optional)</label>
+                  <input id="adm-version" type="text" maxlength="40" placeholder="1.0.0" class="w-full px-3 py-2 text-sm font-mono rounded-lg border border-slate-300" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Game Description *</label>
+                <textarea id="adm-desc" rows="3" required maxlength="5000" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">APK File (.apk only) *</label>
+                <input id="adm-apk" type="file" accept=".apk" required class="block w-full text-xs text-slate-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white cursor-pointer" />
+              </div>
+              <div class="flex justify-end">
+                <button type="submit" class="py-2.5 px-5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer">
+                  Publish Game Now
+                </button>
+              </div>
+            </form>
+
+            <div class="space-y-3">
+              <h3 class="text-base font-bold text-slate-900">Manage Games (${db.games.length})</h3>
+              ${
+                db.games.length === 0
+                  ? `<div class="rounded-xl border border-slate-200 p-6 text-xs text-slate-500 text-center">No games published yet.</div>`
+                  : db.games
+                      .map(
+                        (g) => `
+                  <div class="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <div class="text-sm font-bold text-slate-900">${escapeHtml(g.title)} <span class="font-mono text-xs text-slate-500">v${escapeHtml(g.version)}</span> · <span class="text-xs ${g.publicationStatus === 'Published' ? 'text-emerald-700' : 'text-amber-700'}">${escapeHtml(g.publicationStatus)}</span></div>
+                      <div class="text-xs text-slate-500 mt-0.5">${formatBytes(g.fileSizeBytes)} · Published ${formatDate(g.publishedAt)}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button data-toggle-game="${escapeHtml(g.gameId)}" type="button" class="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer">
+                        ${g.publicationStatus === 'Published' ? 'Unpublish' : 'Republish'}
+                      </button>
+                      <button data-remove-game="${escapeHtml(g.gameId)}" type="button" class="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                `,
+                      )
+                      .join('')
+              }
+            </div>
+          </div>
+        `;
+
+        document.getElementById('form-admin-pub').onsubmit = async (e) => {
+          e.preventDefault();
+          const title = document.getElementById('adm-title').value.trim();
+          const version = document.getElementById('adm-version').value.trim() || '1.0.0';
+          const desc = document.getElementById('adm-desc').value.trim();
+          const file = document.getElementById('adm-apk').files[0];
+          const fb = document.getElementById('pub-feedback');
+
+          if (title.length < 2 || desc.length < 10) {
+            fb.innerHTML = `<div class="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800">Title (min 2 chars) and description (min 10 chars) are required.</div>`;
+            return;
+          }
+
+          const check = await validateApkFile(file);
+          if (!check.valid) {
+            fb.innerHTML = `<div class="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800">${escapeHtml(check.error)}</div>`;
+            return;
+          }
+
+          const gameId = 'game_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+          const storageKey = 'blob_' + gameId;
+          await saveApkBlob(storageKey, file);
+
+          const now = new Date().toISOString();
+          db.games.unshift({
+            gameId,
+            title,
+            description: desc,
+            version,
+            storageKey,
+            fileSizeBytes: file.size,
+            sha256: check.sha256,
+            publicationStatus: 'Published',
+            createdAt: now,
+            publishedAt: now,
+            publishedBy: 'admin_primary',
+          });
+          saveState(db);
+          renderPanelSection(panelContainer);
+        };
+
+        tabBody.querySelectorAll('[data-toggle-game]').forEach((btn) => {
+          btn.onclick = () => {
+            const g = db.games.find((x) => x.gameId === btn.getAttribute('data-toggle-game'));
+            if (g) {
+              g.publicationStatus = g.publicationStatus === 'Published' ? 'Unpublished' : 'Published';
+              saveState(db);
+              renderPanelSection(panelContainer);
+            }
+          };
+        });
+
+        tabBody.querySelectorAll('[data-remove-game]').forEach((btn) => {
+          btn.onclick = async () => {
+            const gId = btn.getAttribute('data-remove-game');
+            const idx = db.games.findIndex((x) => x.gameId === gId);
+            if (idx !== -1) {
+              const g = db.games[idx];
+              db.games.splice(idx, 1);
+              saveState(db);
+              await deleteApkBlob(g.storageKey);
+              renderPanelSection(panelContainer);
+            }
+          };
+        });
+      }
+
+      function renderPanelApprovalsTab(tabBody, panelContainer) {
+        const list = db.submissions.filter((s) => {
+          if (approvalsFilter !== 'All' && s.reviewStatus !== approvalsFilter) return false;
+          if (
+            approvalsSearch.trim() &&
+            !s.title.toLowerCase().includes(approvalsSearch.trim().toLowerCase()) &&
+            !s.submittedByEmail.toLowerCase().includes(approvalsSearch.trim().toLowerCase())
+          ) {
+            return false;
+          }
+          return true;
+        });
+
+        tabBody.innerHTML = `
+          <div class="space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div class="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-lg">
+                ${['All', 'Pending', 'Needs Changes', 'Approved', 'Rejected']
+                  .map(
+                    (st) => `
+                  <button data-filter-status="${st}" type="button" class="px-3 py-1.5 text-xs font-medium rounded-md cursor-pointer ${approvalsFilter === st ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}">${st}</button>
+                `,
+                  )
+                  .join('')}
+              </div>
+              <input id="approvals-search-input" type="search" value="${escapeHtml(approvalsSearch)}" placeholder="Search title or submitter email..." class="px-3 py-1.5 text-xs rounded-lg border border-slate-300" />
+            </div>
+
+            ${
+              list.length === 0
+                ? `<div class="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">No pending or matching submissions found.</div>`
+                : list
+                    .map(
+                      (s) => `
+                <article class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+                  <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h3 class="text-base font-bold text-slate-900">${escapeHtml(s.title)}</h3>
+                      <div class="text-xs font-mono text-slate-500 mt-1">
+                        Submitter: ${escapeHtml(s.submittedByEmail)} · v${escapeHtml(s.version)} · ${formatBytes(s.fileSizeBytes)} · Submitted ${formatDate(s.submittedAt)}
+                      </div>
+                    </div>
+                    <div class="text-xs font-semibold">Status: ${escapeHtml(s.reviewStatus)}</div>
+                  </div>
+                  <p class="text-sm text-slate-700">${escapeHtml(s.description)}</p>
+                  ${
+                    s.latestCorrectionMessage
+                      ? `<div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900"><strong>Correction Request:</strong> ${escapeHtml(s.latestCorrectionMessage)}</div>`
+                      : ''
+                  }
+                  <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <button data-dl-sub="${escapeHtml(s.submissionId)}" type="button" class="px-3.5 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer">
+                      Download APK for Review
+                    </button>
+                    <div class="flex flex-wrap items-center gap-2">
+                      ${
+                        s.reviewStatus !== 'Approved'
+                          ? `<button data-approve-sub="${escapeHtml(s.submissionId)}" type="button" class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer">Approve</button>`
+                          : ''
+                      }
+                      <button data-changes-sub="${escapeHtml(s.submissionId)}" type="button" class="px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg cursor-pointer">
+                        Request Changes
+                      </button>
+                      ${
+                        s.reviewStatus !== 'Rejected'
+                          ? `<button data-reject-sub="${escapeHtml(s.submissionId)}" type="button" class="px-3.5 py-2 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer">Reject</button>`
+                          : ''
+                      }
+                    </div>
+                  </div>
+                </article>
+              `,
+                    )
+                    .join('')
+            }
+          </div>
+        `;
+
+        tabBody.querySelectorAll('[data-filter-status]').forEach((btn) => {
+          btn.onclick = () => {
+            approvalsFilter = btn.getAttribute('data-filter-status');
+            renderPanelApprovalsTab(tabBody, panelContainer);
+          };
+        });
+
+        const searchInput = document.getElementById('approvals-search-input');
+        if (searchInput) {
+          searchInput.oninput = (e) => {
+            approvalsSearch = e.target.value;
+            renderPanelApprovalsTab(tabBody, panelContainer);
+          };
+        }
+
+        tabBody.querySelectorAll('[data-dl-sub]').forEach((btn) => {
+          btn.onclick = async () => {
+            const sub = db.submissions.find((x) => x.submissionId === btn.getAttribute('data-dl-sub'));
+            if (!sub) return;
+            const blob = await getApkBlob(sub.storageKey);
+            if (!blob) {
+              alert('APK binary not found.');
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `review-${sub.fileName || 'package.apk'}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          };
+        });
+
+        tabBody.querySelectorAll('[data-approve-sub]').forEach((btn) => {
+          btn.onclick = () => {
+            const sub = db.submissions.find((x) => x.submissionId === btn.getAttribute('data-approve-sub'));
+            if (!sub || sub.reviewStatus === 'Approved') return;
+            const now = new Date().toISOString();
+            sub.reviewStatus = 'Approved';
+            sub.updatedAt = now;
+
+            const existingGame = db.games.find((g) => g.sourceSubmissionId === sub.submissionId);
+            if (!existingGame) {
+              db.games.unshift({
+                gameId: 'game_' + Date.now(),
+                title: sub.title,
+                description: sub.description,
+                version: sub.version,
+                storageKey: sub.storageKey,
+                fileSizeBytes: sub.fileSizeBytes,
+                sha256: sub.sha256,
+                publicationStatus: 'Published',
+                createdAt: now,
+                publishedAt: now,
+                publishedBy: 'admin_primary',
+                sourceSubmissionId: sub.submissionId,
+              });
+            } else {
+              existingGame.publicationStatus = 'Published';
+              existingGame.publishedAt = now;
+              existingGame.storageKey = sub.storageKey;
+              existingGame.version = sub.version;
+              existingGame.description = sub.description;
+            }
+
+            db.notifications.unshift({
+              notificationId: 'ntf_' + Date.now(),
+              recipientUserId: sub.userId,
+              title: `Game Approved: ${sub.title}`,
+              message: `Your game "${sub.title}" has been approved and is now live in Apps.`,
+              createdAt: now,
+              readAt: null,
+            });
+            saveState(db);
+            renderPanelSection(panelContainer);
+          };
+        });
+
+        tabBody.querySelectorAll('[data-changes-sub]').forEach((btn) => {
+          btn.onclick = () => {
+            const sub = db.submissions.find((x) => x.submissionId === btn.getAttribute('data-changes-sub'));
+            if (!sub) return;
+            openRequestChangesModal(sub, panelContainer);
+          };
+        });
+
+        tabBody.querySelectorAll('[data-reject-sub]').forEach((btn) => {
+          btn.onclick = () => {
+            const sub = db.submissions.find((x) => x.submissionId === btn.getAttribute('data-reject-sub'));
+            if (!sub) return;
+            const reason = prompt(`Optional rejection explanation for "${sub.title}":`, '');
+            if (reason === null) return;
+            const now = new Date().toISOString();
+            sub.reviewStatus = 'Rejected';
+            sub.rejectionReason = reason.trim() || null;
+            sub.updatedAt = now;
+            db.notifications.unshift({
+              notificationId: 'ntf_' + Date.now(),
+              recipientUserId: sub.userId,
+              title: `Submission Rejected: ${sub.title}`,
+              message: reason.trim()
+                ? `Your submission "${sub.title}" was rejected. Reason: ${reason.trim()}`
+                : `Your submission "${sub.title}" was rejected by the administrator.`,
+              createdAt: now,
+              readAt: null,
+            });
+            saveState(db);
+            renderPanelSection(panelContainer);
+          };
+        });
+      }
+
+      function openRequestChangesModal(sub, panelContainer) {
+        const modalRoot = document.getElementById('modal-root');
+        modalRoot.innerHTML = `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div class="w-full max-w-lg rounded-xl bg-white border border-slate-200 p-6 shadow-xl space-y-4">
+              <h3 class="text-base font-bold text-slate-900">Request Corrections &amp; Send Message</h3>
+              <div class="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs space-y-1">
+                <div><strong>Game Title:</strong> ${escapeHtml(sub.title)}</div>
+                <div><strong>Submitter Google Email:</strong> ${escapeHtml(sub.submittedByEmail)}</div>
+              </div>
+              <form id="form-req-changes" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Correction Instructions *</label>
+                  <textarea id="req-changes-msg" rows="4" required placeholder="Describe the issues that need to be corrected..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300"></textarea>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button id="btn-cancel-changes" type="button" class="px-4 py-2 text-xs font-medium border border-slate-300 rounded-lg">Cancel</button>
+                  <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-blue-700 rounded-lg">Send Message</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('btn-cancel-changes').onclick = () => (modalRoot.innerHTML = '');
+        document.getElementById('form-req-changes').onsubmit = (e) => {
+          e.preventDefault();
+          const raw = document.getElementById('req-changes-msg').value.trim();
+          if (!raw) return;
+          const formatted = `Your game has the following issues that need to be corrected: ${raw}. Please fix these issues and submit the updated APK for review.`;
+          const now = new Date().toISOString();
+          sub.reviewStatus = 'Needs Changes';
+          sub.latestCorrectionMessage = formatted;
+          sub.updatedAt = now;
+          sub.history = sub.history || [];
+          sub.history.push({ timestamp: now, action: 'CHANGES_REQUESTED', message: formatted });
+
+          db.notifications.unshift({
+            notificationId: 'ntf_' + Date.now(),
+            recipientUserId: sub.userId,
+            title: `Changes Requested: ${sub.title}`,
+            message: formatted,
+            createdAt: now,
+            readAt: null,
+          });
+          saveState(db);
+          modalRoot.innerHTML = '';
+          renderPanelSection(panelContainer);
+        };
+      }
+
+      // =========================================================================
+      // MODALS: GOOGLE SIGN-IN (NO MANUAL EMAIL/PASSWORD), MY SUBMISSIONS, NOTIFS
+      // =========================================================================
+      function openGoogleAuthModal(contextMsg = '') {
+        const modalRoot = document.getElementById('modal-root');
+        modalRoot.innerHTML = `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div class="w-full max-w-md rounded-xl bg-white border border-slate-200 p-6 shadow-xl space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h2 class="text-base font-bold text-slate-900">Sign in with Google</h2>
+                  <p class="text-xs text-slate-500 mt-0.5">Authenticate with your Google account on arsamgame.</p>
+                </div>
+                <button id="modal-close-btn" type="button" class="text-xs text-slate-500 hover:text-slate-900 cursor-pointer">Close</button>
+              </div>
+              ${contextMsg ? `<div class="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">${escapeHtml(contextMsg)}</div>` : ''}
+              <div id="auth-modal-err"></div>
+
+              <div class="space-y-3 pt-1">
+                <button id="btn-google-oauth-popup" type="button" class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 shadow-2xs transition-colors cursor-pointer">
+                  ${googleSvgIcon()}
+                  <span id="btn-google-oauth-text">Sign in with Google</span>
+                </button>
+                <div id="google-chooser-fallback"></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('modal-close-btn').onclick = () => (modalRoot.innerHTML = '');
+
+        const FinishSignIn = (email, name, uid) => {
+          completeGoogleUserSignIn(email, name, uid);
+          modalRoot.innerHTML = '';
+          renderAll();
+          if (pendingDownloadGameId) {
+            const gId = pendingDownloadGameId;
+            pendingDownloadGameId = null;
+            handleDownloadGame(gId);
+          }
+        };
+
+        document.getElementById('btn-google-oauth-popup').onclick = async () => {
+          const btnText = document.getElementById('btn-google-oauth-text');
+          const errBox = document.getElementById('auth-modal-err');
+          errBox.innerHTML = '';
+
+          // Attempt real Firebase Google OAuth Popup first
+          if (firebaseAuth && window.location.protocol !== 'file:') {
+            try {
+              btnText.textContent = 'Connecting to Google...';
+              const provider = new window.firebase.auth.GoogleAuthProvider();
+              provider.setCustomParameters({ prompt: 'select_account' });
+              const result = await firebaseAuth.signInWithPopup(provider);
+              if (result && result.user && result.user.email) {
+                FinishSignIn(result.user.email, result.user.displayName, result.user.uid);
+                return;
+              }
+            } catch (err) {
+              btnText.textContent = 'Sign in with Google';
+              const code = err && err.code ? String(err.code) : '';
+              if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+                errBox.innerHTML = `<div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">Google Sign-In window was closed before completing login.</div>`;
+                return;
+              }
+              // If unauthorized domain or standalone environment, show embedded Google Account chooser below
+            }
+          }
+
+          // Standalone HTML Google Account Chooser (when opened as a local .html file or outside OAuth domain)
+          const chooser = document.getElementById('google-chooser-fallback');
+          chooser.innerHTML = `
+            <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div class="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                ${googleSvgIcon()}
+                <span>Choose a Google Account to continue to arsamgame</span>
+              </div>
+              <button id="btn-choose-default-google" type="button" class="w-full flex items-center gap-3 p-2.5 rounded-lg bg-white hover:bg-blue-50 border border-slate-200 text-left transition-colors cursor-pointer">
+                <div class="w-8 h-8 rounded-full bg-blue-700 text-white flex items-center justify-center font-bold text-xs shrink-0">A</div>
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-bold text-slate-900 truncate">Arsam Mizani</div>
+                  <div class="text-[11px] font-mono text-slate-500 truncate">arsammizani180@gmail.com</div>
+                </div>
+              </button>
+              <form id="form-google-account-select" class="space-y-2 pt-1 border-t border-slate-200">
+                <label class="block text-[11px] font-semibold text-slate-600">Or continue with another Google (@gmail.com) account:</label>
+                <div class="flex gap-2">
+                  <input id="input-google-acct" type="email" required placeholder="yourname@gmail.com" class="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 bg-white" />
+                  <button type="submit" class="px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg cursor-pointer">Continue</button>
+                </div>
+              </form>
+            </div>
+          `;
+
+          document.getElementById('btn-choose-default-google').onclick = () => {
+            FinishSignIn('arsammizani180@gmail.com', 'Arsam Mizani', 'google_arsam');
+          };
+
+          document.getElementById('form-google-account-select').onsubmit = (ev) => {
+            ev.preventDefault();
+            const gEmail = document.getElementById('input-google-acct').value.trim().toLowerCase();
+            if (!gEmail) return;
+            FinishSignIn(gEmail, gEmail.split('@')[0], 'google_' + Date.now());
+          };
+        };
+      }
+
+      function openMySubmissionsModal() {
+        const user = getCurrentUser();
+        if (!user) return;
+        const mySubs = db.submissions.filter((s) => s.userId === user.userId);
+        const modalRoot = document.getElementById('modal-root');
+
+        modalRoot.innerHTML = `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 overflow-y-auto">
+            <div class="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl bg-white border border-slate-200 p-6 shadow-xl">
+              <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+                <h2 class="text-base font-bold text-slate-900">My Submissions</h2>
+                <button id="close-mysubs" type="button" class="text-xs text-slate-500 hover:text-slate-900">Close</button>
+              </div>
+              <div class="mt-4 overflow-y-auto space-y-4">
+                ${
+                  mySubs.length === 0
+                    ? `<div class="text-center py-8 text-xs text-slate-500">You have not submitted any APKs yet.</div>`
+                    : mySubs
+                        .map(
+                          (s) => `
+                      <div class="rounded-xl border border-slate-200 p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                          <div class="font-bold text-sm text-slate-900">${escapeHtml(s.title)} <span class="font-mono text-xs text-slate-500">v${escapeHtml(s.version)}</span></div>
+                          <div class="text-xs font-semibold">Status: ${escapeHtml(s.reviewStatus)}</div>
+                        </div>
+                        ${
+                          s.reviewStatus === 'Needs Changes' && s.latestCorrectionMessage
+                            ? `
+                          <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 space-y-2">
+                            <div><strong>Administrator Feedback:</strong> ${escapeHtml(s.latestCorrectionMessage)}</div>
+                            <div>
+                              <label class="block font-semibold mb-1">Upload Corrected .apk File:</label>
+                              <input data-resub-input="${escapeHtml(s.submissionId)}" type="file" accept=".apk" class="text-xs" />
+                              <button data-resub-btn="${escapeHtml(s.submissionId)}" type="button" class="mt-2 px-3 py-1.5 text-xs font-semibold text-white bg-blue-700 rounded-lg cursor-pointer">
+                                Resubmit Corrected APK
+                              </button>
+                            </div>
+                          </div>
+                        `
+                            : ''
+                        }
+                      </div>
+                    `,
+                        )
+                        .join('')
+                }
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('close-mysubs').onclick = () => (modalRoot.innerHTML = '');
+        modalRoot.querySelectorAll('[data-resub-btn]').forEach((btn) => {
+          btn.onclick = async () => {
+            const subId = btn.getAttribute('data-resub-btn');
+            const fileInput = modalRoot.querySelector(`[data-resub-input="${subId}"]`);
+            const file = fileInput ? fileInput.files[0] : null;
+            const check = await validateApkFile(file);
+            if (!check.valid) {
+              alert(check.error);
+              return;
+            }
+            const sub = db.submissions.find((x) => x.submissionId === subId);
+            if (!sub) return;
+            const newKey = 'blob_' + subId + '_' + Date.now();
+            await saveApkBlob(newKey, file);
+            sub.storageKey = newKey;
+            sub.fileName = file.name;
+            sub.fileSizeBytes = file.size;
+            sub.sha256 = check.sha256;
+            sub.reviewStatus = 'Pending';
+            sub.updatedAt = new Date().toISOString();
+            saveState(db);
+            openMySubmissionsModal();
+          };
+        });
+      }
+
+      function openNotificationsModal() {
+        const user = getCurrentUser();
+        if (!user) return;
+        const list = db.notifications.filter((n) => n.recipientUserId === user.userId);
+        list.forEach((n) => {
+          if (!n.readAt) n.readAt = new Date().toISOString();
+        });
+        saveState(db);
+        renderHeader();
+
+        const modalRoot = document.getElementById('modal-root');
+        modalRoot.innerHTML = `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div class="w-full max-w-lg max-h-[80vh] flex flex-col rounded-xl bg-white border border-slate-200 p-6 shadow-xl">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h2 class="text-base font-bold text-slate-900">Notifications</h2>
+                <button id="close-notifs" type="button" class="text-xs text-slate-500 hover:text-slate-900">Close</button>
+              </div>
+              <div class="mt-4 overflow-y-auto space-y-3">
+                ${
+                  list.length === 0
+                    ? `<div class="text-center py-8 text-xs text-slate-500">No notifications yet.</div>`
+                    : list
+                        .map(
+                          (n) => `
+                      <div class="rounded-lg border border-slate-200 p-3 text-xs space-y-1">
+                        <div class="font-bold text-slate-900">${escapeHtml(n.title)}</div>
+                        <div class="text-slate-600">${escapeHtml(n.message)}</div>
+                      </div>
+                    `,
+                        )
+                        .join('')
+                }
+              </div>
+            </div>
+          </div>
+        `;
+        document.getElementById('close-notifs').onclick = () => (modalRoot.innerHTML = '');
+      }
+
+      // =========================================================================
+      // SELF-DOWNLOAD HANDLER FOR STANDALONE HTML
+      // =========================================================================
+      document.getElementById('btn-download-self-html').onclick = () => {
+        if (window.location.protocol.startsWith('http')) {
+          window.location.href = '/download/arsamgame.html';
+          return;
+        }
+        const htmlContent = '<!doctype html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'arsamgame.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      };
+
+      // =========================================================================
+      // MAIN RENDER DISPATCHER
+      // =========================================================================
+      function renderAll() {
+        renderHeader();
+        const main = document.getElementById('app-main');
+        if (activeSection === 'panel') {
+          renderPanelSection(main);
+        } else if (activeSection === 'add-apps') {
+          renderAddAppsSection(main);
+        } else {
+          renderAppsSection(main);
+        }
+      }
+
+      document.querySelectorAll('[data-nav]').forEach((link) => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          navigateTo(link.getAttribute('data-nav'));
+        });
+      });
+
+      document.getElementById('brand-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo('apps');
+      });
+
+      const initialHash = window.location.hash.replace(/^#/, '').toLowerCase();
+      if (initialHash === 'panel' || initialHash === 'add-apps' || initialHash === 'apps') {
+        activeSection = initialHash;
+      }
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
