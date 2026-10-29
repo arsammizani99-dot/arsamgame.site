@@ -1,0 +1,1093 @@
+# MASTER PROMPT: Build a Complete, Secure, Fully Functional APK Game Publishing Platform
+
+Act as a senior full-stack software engineer, backend architect, database engineer, security specialist, and UI/UX designer. Build a complete, production-oriented game publishing website from scratch.
+
+The project must be a genuinely functional application, not a visual mockup, static demo, prototype, or collection of non-working buttons.
+
+Every important feature must have a working frontend, backend, database integration, file storage integration, authentication flow, validation, error handling, and persistent data.
+
+Do not stop after creating the interface. Implement and test the complete application.
+
+# 1. MAIN PROJECT OBJECTIVE
+
+Build an online APK game publishing platform with exactly three primary navigation sections:
+
+1. **Panel** — a password-protected administration area.
+2. **Apps** — the public game library.
+3. **Add Apps** — a submission form where registered users can upload APK files for review.
+
+The site must initially be completely empty.
+
+Do not create sample games, fake downloads, fictional users, demo submissions, fake statistics, placeholder approval records, or invented published content.
+
+The Apps page must display a clean empty state until the administrator publishes a game or approves a user's submission.
+
+Every published game and pending submission must be backed by actual persistent data.
+
+Use a clean, modern, professional, predominantly white interface with readable typography, restrained accent colors, attractive game cards, responsive layouts, subtle animations, and accessible controls.
+
+The website must work on desktop computers, laptops, tablets, and mobile phones.
+
+The primary navigation labels must be exactly:
+
+- Panel
+- Apps
+- Add Apps
+
+Keep navigation simple and intuitive.
+
+# 2. REQUIRED TECHNOLOGY AND ARCHITECTURE
+
+Build a real full-stack application using an architecture supported by the available development environment.
+
+Preferred architecture:
+
+- React for the frontend.
+- TypeScript for type safety.
+- A maintained routing solution.
+- Firebase Authentication for email-based user accounts.
+- Cloud Firestore for persistent game records, submissions, messages, notifications, and user metadata.
+- Firebase Cloud Storage for APK file storage.
+- Secure server-side API routes, Cloud Functions, or another trusted backend for privileged operations.
+- Firebase Security Rules or equivalent backend authorization controls.
+- Firebase App Check or equivalent abuse protection when supported.
+
+If the environment already provides an equivalent, properly configured backend, you may use it instead. Do not build a second unnecessary backend.
+
+IMPORTANT:
+
+A frontend-only implementation is not sufficient for this project.
+
+Do not store uploaded APK files in localStorage, sessionStorage, browser memory, or temporary local directories as the primary storage system.
+
+Do not simulate file uploads with fake progress bars.
+
+Do not simulate successful logins, approvals, downloads, or database writes.
+
+All data must persist across refreshes, browser restarts, devices, and separate user sessions.
+
+If a required Firebase or backend configuration is missing, explain the missing configuration clearly and provide the exact setup instructions. Never claim that an integration is working when it is not connected.
+
+# 3. THREE MAIN WEBSITE SECTIONS
+
+## SECTION A: PANEL
+
+The Panel is the private administration area.
+
+The administrator must enter the correct administrator password before accessing it.
+
+The configured administrator password must be:
+
+arsam27
+
+Configure this value through a server-side secret or environment variable named ADMIN_PANEL_PASSWORD.
+
+Set the deployment secret to arsam27.
+
+Never expose the administrator password in client-side JavaScript, publicly accessible configuration files, HTML, frontend environment variables, API responses, or browser source code.
+
+Never rely on hiding the Panel button as a security mechanism.
+
+The server must verify administrator credentials and authorize all privileged operations.
+
+If secure server-side secret configuration is unavailable in the current environment, clearly explain the limitation instead of pretending that a client-side password check is secure.
+
+### 3.1 Administrator password screen
+
+When a visitor opens Panel, display a professional password screen.
+
+Include:
+
+- Website logo or text branding.
+- A clear administrator access heading.
+- A password input.
+- A show/hide password control.
+- An Enter key submission handler.
+- A Login button.
+- A loading indicator during verification.
+- A readable incorrect-password error.
+- A generic server-error message when login verification fails.
+- Protection against repeated rapid login attempts.
+- Accessible labels and keyboard navigation.
+
+Never display the correct password anywhere on the screen.
+
+Never return the password itself from an API.
+
+After successful verification, create an appropriately protected administrator session on the server.
+
+Use secure session handling, secure cookies when supported, HTTPS in production, and server-side authorization for every administrator action.
+
+### 3.2 Require the password again after leaving Panel
+
+The administrator specifically requires fresh password entry whenever they leave the administration area and return.
+
+Implement the following behavior:
+
+- Opening Panel always presents the password gate unless a currently valid administrator session is active within the current uninterrupted visit to Panel.
+- When the administrator navigates from Panel to Apps, Add Apps, or another main website route, lock Panel immediately.
+- Leaving Panel must invalidate the administrator's active session through the backend.
+- Returning to Panel must require the password again.
+- Refreshing or reopening the Panel must require the password again.
+- Using browser Back to return to Panel must not bypass the password screen.
+- Opening Panel in a new tab must not automatically grant administrator access.
+- When the administrator leaves or backgrounds the page, lock the administration interface and require fresh password entry when returning.
+- Do not persist administrator authentication in localStorage or sessionStorage.
+- Do not automatically unlock the panel after refreshing the page.
+- Ensure route transitions, browser navigation, and direct URL access cannot bypass these checks.
+
+Implement a reliable route-locking and session-invalidating mechanism. Test all these cases.
+
+The administrator must not have to enter the password again when switching between internal tabs inside the already unlocked Panel, such as switching between publishing and reviewing submissions. However, leaving Panel itself must lock it.
+
+If an administrator session expires or the backend becomes unavailable, fail securely and require authentication again.
+
+### 3.3 Internal Panel dashboard
+
+After successful authentication, show a real administration dashboard.
+
+Inside Panel, include two major internal tabs:
+
+1. Publish Game
+2. Game Approvals
+
+Use a clear visual distinction between these tabs.
+
+Display genuine statistics calculated from stored records, such as:
+
+- Total published games.
+- Pending submissions.
+- Approved submissions.
+- Rejected submissions.
+- Submissions awaiting corrections.
+
+Initially, all numbers must reflect the real database state, not hardcoded demo data.
+
+Display meaningful loading, empty, and error states.
+
+## 4. PANEL TAB ONE: PUBLISH GAME
+
+The administrator must be able to publish their own games directly, without waiting for user approval.
+
+Create a complete publishing form.
+
+Required fields:
+
+- Game title.
+- Game description.
+- APK file.
+
+Optional field:
+
+- Version number.
+
+The only permitted game package upload must be an APK file.
+
+Do not accept ZIP, HTML, EXE, MSI, AAB, IPA, or other file types as game packages.
+
+Do not add a second package-upload option.
+
+Use a generated application icon based on the game title rather than requiring an additional cover-image upload.
+
+### Publishing form functionality
+
+The administrator must be able to:
+
+1. Enter a game title.
+2. Write a description.
+3. Enter an optional version number.
+4. Select an APK file from their device.
+5. See the selected filename and file size.
+6. Cancel or replace the selected file before publishing.
+7. Submit the publishing form.
+8. See real upload progress.
+9. Cancel an upload when safe and supported.
+10. Receive a clear success or error message.
+
+Validate required fields both in the frontend and backend.
+
+Trim unnecessary whitespace.
+
+Reject empty titles and descriptions.
+
+Apply configurable limits to title length and description length.
+
+Validate the APK extension, actual uploaded content, file size, and supported upload format on the server.
+
+Do not trust the filename or MIME type alone.
+
+Where supported, verify APK archive structure and the presence of expected Android package contents. Never execute uploaded APK files on the server.
+
+Set a configurable maximum APK size that respects the actual hosting provider's limits. Show an understandable error when a file exceeds that limit.
+
+Prevent accidental duplicate submissions caused by repeated clicks.
+
+Disable the submit button while the operation is in progress.
+
+Only mark a game as published after its file has been uploaded successfully and its database record has been created successfully.
+
+If part of the operation fails, clean up incomplete uploads when possible and explain how the administrator can retry.
+
+### After publishing
+
+When the administrator successfully publishes a game:
+
+- Save the APK in permanent object storage.
+- Save the game's metadata in the database.
+- Mark the game as published.
+- Make it appear in Apps automatically.
+- Generate a unique game ID.
+- Record its publication date.
+- Record its file size.
+- Record the administrator who published it.
+- Make it available through the authenticated download flow.
+- Show a confirmation message.
+- Reset the form after confirmed success.
+
+The game must remain available after page refreshes, browser restarts, and future visits.
+
+Never publish a game record pointing to a missing or inaccessible file.
+
+## 5. PANEL TAB TWO: GAME APPROVALS
+
+This section manages games submitted by ordinary registered users.
+
+Display actual pending submissions from the database.
+
+For each submission, show:
+
+- Game title.
+- Game description.
+- Submitter's registered email address, visible only to authorized administrators.
+- Submission date.
+- APK file size.
+- Version number when provided.
+- Current review status.
+- Available review actions.
+
+Include useful filters such as Pending, Needs Changes, Approved, and Rejected.
+
+Include a search input to find submissions by title or submitter email.
+
+Show a helpful empty state when there are no pending submissions.
+
+Never display fake submissions.
+
+### 5.1 Inspect and download submitted APKs
+
+The administrator must be able to inspect the submission details and download the submitted APK for testing.
+
+Generate an appropriately authorized download link through the backend.
+
+Pending submission files must not be publicly accessible through predictable or permanent public URLs.
+
+Do not provide a public list of pending files.
+
+Only the administrator may access these review downloads.
+
+Never install or execute submitted APK files automatically.
+
+### 5.2 Accept a game
+
+Each pending submission must have a working Approve button.
+
+When the administrator approves a submission:
+
+1. Validate that the submission still exists and is awaiting review.
+2. Update its review status in the database.
+3. Create or activate its published game record.
+4. Associate the published game with the correct stored APK.
+5. Make the game appear in Apps.
+6. Record the approval timestamp.
+7. Record which administrator approved it.
+8. Notify the submitting user.
+9. Prevent duplicate publication if the Approve button is clicked multiple times.
+
+Approval must be an actual database operation, not a change to the user interface alone.
+
+The approved game must be downloadable through the normal Apps download process.
+
+### 5.3 Reject a game
+
+Each submission must have a working Reject button.
+
+Before rejecting a submission, display a confirmation dialog.
+
+Allow the administrator to enter an optional rejection explanation.
+
+After confirmation:
+
+- Save the rejection status.
+- Save the reason when provided.
+- Record the review timestamp.
+- Record the reviewing administrator.
+- Notify the submitter.
+- Keep an appropriate review record.
+- Do not display the rejected game in Apps.
+
+Avoid permanent deletion of the original review record during rejection.
+
+### 5.4 Request corrections and send a message
+
+This feature is essential.
+
+Every pending submission must provide a Request Changes action.
+
+When the administrator selects it, open a message form containing:
+
+- The game title.
+- The submitter's email address.
+- A required message field.
+- A Send Message button.
+- A Cancel button.
+
+The administrator must be able to send a custom message similar to:
+
+"Your game has the following issues that need to be corrected: [administrator's message]. Please fix these issues and submit the updated APK for review."
+
+The administrator must be able to write any appropriate correction instructions.
+
+When the message is sent:
+
+1. Save the message permanently in the database.
+2. Change the submission status to Needs Changes.
+3. Display the message in the user's submission details.
+4. Create an in-app notification for the user.
+5. Save the message timestamp and administrator ID.
+6. Provide a way for the user to submit a corrected APK.
+7. Preserve the previous review history.
+
+Implement real in-app messaging and notifications.
+
+If email delivery is also configured through a real email provider, send a notification email to the registered address. Never claim an email was delivered unless the email provider confirms the operation.
+
+If external email delivery has not been configured, clearly indicate that the message was sent through the website's internal notification system.
+
+### 5.5 User resubmission after corrections
+
+A user whose game is marked Needs Changes must be able to:
+
+- Read the administrator's message.
+- Replace the previous submitted APK with a corrected APK.
+- Update the description and version where appropriate.
+- Resubmit the game for review.
+- See the new submission status.
+
+The replacement file must also be an APK.
+
+Keep an appropriate audit history of the original submission, correction requests, messages, replacement versions, and review decisions.
+
+After resubmission, update the current status to Pending.
+
+Notify the administrator that the game has been resubmitted.
+
+Do not create duplicate published games as a result of resubmission.
+
+## 6. SECTION B: APPS
+
+Apps is the public game library.
+
+On the first launch, it must be completely empty, with no demo games.
+
+Display a simple empty state:
+
+"No games published yet."
+
+Only games published directly by the administrator or successfully approved from Add Apps may appear here.
+
+Do not show pending, rejected, or correction-requested submissions in Apps.
+
+### 6.1 Game cards
+
+For each published game, display:
+
+- Automatically generated app icon.
+- Game title.
+- Game description.
+- Version number, when available.
+- APK file size.
+- Publication date.
+- A working Download APK button.
+
+Use attractive, consistent game cards.
+
+Provide a responsive grid that adjusts naturally to screen width.
+
+Include a search field that searches published games by title.
+
+When a search finds no results, display an appropriate empty-results message.
+
+Sort games consistently, preferably newest published first.
+
+Do not display fake download counts or fabricated statistics.
+
+### 6.2 Download authentication requirement
+
+Every user must sign in with their email account before downloading a game.
+
+Visitors may browse the Apps page without signing in, but they must authenticate before a download begins.
+
+When an unauthenticated visitor clicks Download APK:
+
+1. Open the sign-in screen.
+2. Preserve the intended download action.
+3. Complete authentication and any required email verification.
+4. Return the user to the intended game.
+5. Recheck that the game is still published.
+6. Request an authorized download from the backend.
+7. Start the actual APK download.
+
+Do not force the user to find the game again after signing in.
+
+If the game has been unpublished or removed during the sign-in process, explain that the download is no longer available.
+
+The downloaded file must be the real APK stored on the backend, with a suitable filename ending in .apk.
+
+Do not create fake download buttons that lead to empty files, HTML pages, or unrelated destinations.
+
+Do not expose private storage credentials or privileged storage tokens to the frontend.
+
+Use short-lived download URLs or an authenticated streaming/download endpoint where appropriate.
+
+Ensure download authorization checks the game's publication status.
+
+## 7. SECTION C: ADD APPS
+
+This section allows registered visitors to submit their own Android games for approval.
+
+It must not publish games immediately.
+
+It must not offer a second direct publishing path for ordinary users.
+
+### 7.1 Authentication before submitting
+
+An unauthenticated visitor who opens the Add Apps submission form must be asked to sign in with an email account before submitting.
+
+After successful authentication, return the visitor to Add Apps.
+
+Preserve normal form state when practical, but never silently submit a file before the user explicitly confirms submission.
+
+### 7.2 Submission form
+
+Build a complete, attractive, working form.
+
+Required fields:
+
+- Game title.
+- Game description.
+- APK package file.
+
+Optional field:
+
+- Version number.
+
+Only APK files are allowed as game package uploads.
+
+Do not accept ZIP, HTML, EXE, MSI, AAB, IPA, or other packages.
+
+Do not require users to upload cover images, screenshots, or extra files.
+
+Generate a simple visual app icon from the game title.
+
+### 7.3 File upload behavior
+
+The form must support selecting an APK from a computer or compatible mobile device.
+
+Display:
+
+- Selected filename.
+- File size.
+- Upload progress.
+- Submission progress.
+- Success and error messages.
+- Clear file-size and file-type validation errors.
+
+Implement proper server-side file validation.
+
+Never trust client-provided filenames, sizes, MIME types, or claimed identities.
+
+Prevent unauthorized uploads to other users' submission records.
+
+Give each submission a unique ID.
+
+Save the authenticated user's ID and verified email address as the submitter metadata.
+
+The user must not be allowed to set another person's email address as the submission owner.
+
+Enforce configurable upload limits, abuse prevention, and actual provider storage limits.
+
+Use appropriate abuse protection and malware scanning or quarantine integration when available. Never execute user-uploaded files.
+
+### 7.4 After submitting
+
+When a submission succeeds:
+
+- Save the uploaded APK in private storage.
+- Save its metadata in the database.
+- Set its review status to Pending.
+- Record the submission date.
+- Associate the record with the authenticated user.
+- Create a confirmation notification.
+- Show a successful submission message.
+- Provide a link to the user's submission details.
+
+The confirmation should explain that the game is not published yet and must be reviewed by the administrator.
+
+The submission must appear in Panel > Game Approvals.
+
+It must not appear in Apps until approved.
+
+Prevent repeated clicks from creating duplicate submission records.
+
+If uploading fails, retain enough form state to allow a retry and clearly explain the failure.
+
+## 8. USER EMAIL AUTHENTICATION
+
+Implement genuine email authentication using Firebase Authentication or an equivalent supported identity provider.
+
+Required features:
+
+- Create account with email and password.
+- Sign in with email and password.
+- Email verification.
+- Sign out.
+- Forgot password.
+- Password reset.
+- Clear invalid-credentials errors.
+- Clear invalid-email errors.
+- Handling for existing accounts.
+- Loading states.
+- Session expiration handling.
+- Protected user actions.
+
+Provide clean sign-in and registration forms.
+
+Do not collect unnecessary personal information.
+
+Never store plaintext user passwords in Firestore or another application database.
+
+Never log user passwords.
+
+Do not create fake users or bypass authentication in production.
+
+Only verified, authenticated accounts may submit games or download APKs.
+
+A successful login must actually create a valid authenticated session.
+
+Keep the user signed in according to the identity provider's supported persistence policy, unless they sign out or their session expires.
+
+Admin access and ordinary user authentication must be separate authorization concerns. Ordinary users must never gain administrator privileges merely by registering an account or knowing an unprotected frontend route.
+
+## 9. USER ACCOUNT AREA AND SUBMISSION TRACKING
+
+Provide an authenticated user's account menu with:
+
+- Account email.
+- My Submissions.
+- Notifications.
+- Sign Out.
+
+My Submissions must display only the current user's own submissions.
+
+For each submission, show:
+
+- Game title.
+- Submission date.
+- Current status.
+- Administrator feedback when available.
+- Correction and resubmission actions when required.
+
+Use readable status labels:
+
+- Pending
+- Needs Changes
+- Approved
+- Rejected
+
+Users must never be able to see another user's private submissions, administrator-only notes, private APK files, or personal data.
+
+When the administrator sends a correction message, display the message prominently in the appropriate submission details.
+
+Add an in-app notification indicator for unread notifications.
+
+Allow users to mark notifications as read.
+
+## 10. DATABASE DESIGN
+
+Create a proper persistent data model.
+
+At minimum, provide the following logical collections or equivalent database entities:
+
+### Users
+
+Fields should include:
+
+- userId
+- email
+- emailVerified
+- createdAt
+- account metadata needed by the application
+
+### Games
+
+Fields should include:
+
+- gameId
+- title
+- description
+- version
+- storageObjectPath
+- fileSizeBytes
+- publicationStatus
+- createdAt
+- publishedAt
+- publishedBy
+- sourceSubmissionId, when applicable
+
+### Submissions
+
+Fields should include:
+
+- submissionId
+- userId
+- submittedByEmail
+- title
+- description
+- version
+- privateStorageObjectPath
+- fileSizeBytes
+- reviewStatus
+- submittedAt
+- updatedAt
+- reviewedAt
+- reviewedBy
+- rejectionReason, when provided
+- correctionHistory
+
+### Notifications
+
+Fields should include:
+
+- notificationId
+- recipientUserId
+- relatedSubmissionId
+- message
+- type
+- createdAt
+- readAt
+
+### Review Messages
+
+Record the message, recipient, submission, administrator, timestamp, and relevant status transition.
+
+Use server timestamps where appropriate.
+
+Add the necessary database indexes.
+
+Use transactions or equivalent atomic operations where appropriate to prevent duplicate approvals, inconsistent publication records, and race conditions.
+
+Never trust a client-provided userId to authorize access to a record.
+
+The database must be the source of truth for game publication and review status.
+
+# 11. SECURITY REQUIREMENTS
+
+Security is mandatory.
+
+Implement server-side authorization for all privileged operations.
+
+Apply least-privilege access.
+
+Ordinary authenticated users must not be able to:
+
+- Publish games directly.
+- Approve submissions.
+- Reject submissions.
+- Send administrator review messages.
+- Change administrator privileges.
+- Read other users' private submission records.
+- Read all users' private emails.
+- Read pending APK files belonging to other users.
+- Change a submission status to Approved.
+- Change the publisher ID to an administrator ID.
+- Write directly to privileged game records.
+
+An ordinary user may create a submission only for their own authenticated account.
+
+Only approved game metadata may be publicly readable without administrator authorization, subject to the application's intended privacy policy.
+
+Private APK storage must not be publicly listable or readable without authorization.
+
+Protect privileged APIs from unauthorized direct requests, even when called outside the website interface.
+
+Use the identity provider's verified authentication context.
+
+Keep secret configuration on the server.
+
+Protect against basic abuse, unauthorized requests, forged metadata, duplicate submissions, and excessive login attempts.
+
+Use secure production hosting with HTTPS.
+
+Validate every important value on the backend.
+
+Do not expose API secrets, service-account credentials, private storage configuration, or server environment variables to the browser.
+
+Use a trusted scanning integration when available for uploaded APK files. Clearly distinguish between file-format validation and actual malware detection.
+
+Never claim a file is malware-free just because it passed extension or archive validation.
+
+# 12. DOWNLOAD AND STORAGE RELIABILITY
+
+Implement reliable file storage and download management.
+
+Store files under unique, non-guessable object paths.
+
+Do not store APK binary content directly inside ordinary database documents.
+
+Database records should store metadata and private storage paths.
+
+Implement upload progress, appropriate timeouts, retry behavior, and understandable errors.
+
+Handle interrupted uploads safely.
+
+Ensure that a database record cannot remain published if the corresponding APK file was never successfully stored.
+
+When an administrator removes a published game, follow a safe process that updates the publication status before deleting the file.
+
+Before deleting a file, determine whether it is still referenced by another game record or requires retention for review history.
+
+Do not immediately delete review evidence needed for an existing submission.
+
+Implement appropriate cleanup for abandoned partial uploads where supported.
+
+Do not silently report success if a database write or storage operation fails.
+
+# 13. ADMINISTRATOR GAME MANAGEMENT
+
+In addition to publishing and approving games, allow the administrator to manage already published games.
+
+For each published game, provide appropriate administrator-only actions:
+
+- View details.
+- Edit title.
+- Edit description.
+- Edit version.
+- Replace the APK with a new validated APK when needed.
+- Unpublish a game.
+- Republish a previously unpublished game when appropriate.
+- Remove a game after a confirmation step.
+
+Every operation must update the persistent database and storage state consistently.
+
+When an APK is replaced, do not publish a broken record pointing to the old or missing file.
+
+Ask for confirmation before destructive operations.
+
+Show a clear success or failure message after every completed action.
+
+Add an administrator audit log for publishing, editing, approving, rejecting, requesting corrections, unpublishing, and deleting.
+
+Only an authorized administrator may access this functionality.
+
+# 14. USER INTERFACE AND VISUAL DESIGN
+
+Create a professional application rather than a generic admin template.
+
+Design direction:
+
+- Clean white background.
+- Dark, readable text.
+- A restrained blue or purple accent.
+- Consistent spacing.
+- Rounded but not excessively rounded cards.
+- Clear typography.
+- Subtle transitions.
+- Attractive empty states.
+- Clear form labels.
+- Professional confirmation dialogs.
+- Responsive desktop and mobile navigation.
+
+Keep the three main sections easy to find.
+
+On mobile devices, use a compact navigation layout that remains accessible without covering page content.
+
+Panel should look like a genuine administration dashboard with a sidebar or clean tab navigation, status indicators, tables or cards, and a clear logout action.
+
+Apps should look like a simple, polished Android game library.
+
+Add Apps should have a focused submission form with an explanation of the review process.
+
+Do not fill the empty Apps page with stock images or example games.
+
+Use a generated icon derived from each title instead of requiring an image upload.
+
+Ensure text contrast and keyboard accessibility.
+
+Add loading skeletons or progress indicators where useful.
+
+Do not use browser alerts as the only user interface for normal operations. Use accessible in-app notifications, dialogs, and status messages.
+
+# 15. ERROR HANDLING
+
+Handle expected errors explicitly.
+
+Examples include:
+
+- Incorrect administrator password.
+- Expired administrator session.
+- Unauthorized API request.
+- Unverified email.
+- Invalid login credentials.
+- Expired user session.
+- Network disconnection.
+- Upload interrupted.
+- APK file type not allowed.
+- APK file too large.
+- Invalid APK structure.
+- Storage unavailable.
+- Database unavailable.
+- Duplicate form submission.
+- Game removed before download.
+- Approval conflict.
+- Failed correction message.
+- Failed notification.
+- Missing configuration.
+- Insufficient storage quota.
+- Download authorization denied.
+
+Display human-readable messages rather than raw stack traces.
+
+Log relevant technical errors on the server without logging passwords, private tokens, or unnecessary personal information.
+
+Provide a Retry action when retrying is safe.
+
+Do not leave the application stuck on a loading screen after an error.
+
+Ensure that a temporary network failure does not create false success messages or duplicate published games.
+
+# 16. PERFORMANCE AND RELIABILITY
+
+Use efficient database queries.
+
+Load game listings in a scalable manner.
+
+Use pagination or lazy loading if the number of published games grows.
+
+Avoid downloading APK contents just to display game cards.
+
+Do not retrieve every user record for ordinary public pages.
+
+Use appropriate caching for public metadata while respecting authorization and publication-status changes.
+
+Avoid unnecessary frontend rerenders.
+
+Ensure every form has proper submission state and duplicate-click protection.
+
+Ensure page refreshes do not erase persisted data.
+
+Verify all routes when entered directly.
+
+Ensure that the Back and Forward browser buttons do not bypass authentication or reveal private screens.
+
+Ensure database updates propagate to the interface without requiring a full site restart.
+
+Use realtime updates when supported and useful, especially for administrator review queues and user notifications.
+
+Provide graceful fallback behavior if realtime connections are interrupted.
+
+# 17. REQUIRED FUNCTIONAL TESTS
+
+Before declaring the project complete, run actual tests and fix discovered issues.
+
+Do not merely state that testing was performed.
+
+Verify the following cases:
+
+TEST 1: A first-time visitor opens Apps and sees the empty state.
+
+TEST 2: A visitor clicks Download APK without signing in and is redirected to authentication.
+
+TEST 3: An unregistered visitor can create an account using email and password.
+
+TEST 4: Email verification is enforced for protected user actions.
+
+TEST 5: A registered user can sign in and sign out successfully.
+
+TEST 6: A registered user can submit a valid APK.
+
+TEST 7: The uploaded APK is really stored in persistent storage.
+
+TEST 8: The submission appears in the administrator's approval queue.
+
+TEST 9: An unauthorized user cannot access the administrator API directly.
+
+TEST 10: The administrator can unlock Panel using the configured password.
+
+TEST 11: The administrator is asked for the password again after leaving Panel and returning.
+
+TEST 12: Refreshing the page does not bypass the administrator password gate.
+
+TEST 13: Opening Panel in another tab does not inherit an unlocked administration interface.
+
+TEST 14: The administrator can publish their own valid APK.
+
+TEST 15: A newly published game appears in Apps after the backend confirms success.
+
+TEST 16: A valid submission can be approved and published exactly once.
+
+TEST 17: A rejected submission does not appear in Apps.
+
+TEST 18: The administrator can send a custom correction message.
+
+TEST 19: The correction message is saved and displayed to the correct user.
+
+TEST 20: The user can replace a corrected APK and resubmit the game.
+
+TEST 21: Resubmission returns the item to Pending without creating duplicate published games.
+
+TEST 22: Only the owner can access their own submission details.
+
+TEST 23: Invalid non-APK uploads are rejected.
+
+TEST 24: Oversized files are rejected with a clear error.
+
+TEST 25: Upload interruption does not create a falsely published game.
+
+TEST 26: An unauthenticated user cannot download a private pending APK.
+
+TEST 27: An authenticated user can download a genuinely published APK.
+
+TEST 28: The downloaded file is the real APK and retains the correct .apk file extension.
+
+TEST 29: An administrator can unpublish a game and prevent new downloads.
+
+TEST 30: The application remains functional after a full browser refresh.
+
+TEST 31: The application remains functional after closing and reopening the browser.
+
+TEST 32: Important workflows work on both desktop and mobile screen sizes.
+
+TEST 33: No important button is decorative or disconnected from its intended operation.
+
+TEST 34: Database and storage failures display an error instead of a false success message.
+
+TEST 35: Ordinary users cannot modify privileged database records or administrator settings.
+
+TEST 36: Direct navigation and browser Back/Forward navigation do not bypass the Panel lock.
+
+TEST 37: A missing backend configuration is reported accurately.
+
+TEST 38: Real status counts and notifications match the database.
+
+Use unit tests, integration tests, and browser-based end-to-end tests where supported.
+
+Mock external services only inside explicitly isolated test environments. Never replace production operations with mock implementations.
+
+Fix discovered errors before reporting completion.
+
+If any test cannot be run in the current environment, explicitly identify it as unverified instead of claiming it passed.
+
+# 18. REQUIRED DELIVERABLES
+
+Provide the complete source code for the actual application.
+
+Include:
+
+- Frontend source code.
+- Backend source code or server-side functions.
+- Database schema and indexes.
+- Storage configuration.
+- Authentication integration.
+- Database security rules.
+- Storage security rules.
+- Environment-variable example file without real secrets.
+- Required dependencies.
+- Development startup instructions.
+- Production deployment instructions.
+- Backend and authentication setup instructions.
+- Test files.
+- A README explaining how the application works.
+
+Do not omit important files.
+
+Do not provide pseudocode in place of essential functionality.
+
+Do not implement fake backend APIs.
+
+Do not leave TODO comments for core required features.
+
+Do not create buttons that only display success messages without completing their operations.
+
+Do not claim that a local preview automatically provides persistent online storage or production deployment.
+
+If the environment supports file creation, create all required project files directly.
+
+If the environment has a built-in preview, start the application and check the actual implementation.
+
+If deployment is supported, deploy only through the configured hosting service and report the resulting URL only when deployment is confirmed.
+
+If deployment is not available, provide practical instructions for deploying the completed project.
+
+# 19. IMPLEMENTATION ORDER
+
+Follow this order:
+
+Phase 1: Inspect the available development environment, choose a compatible architecture, and identify required backend configuration.
+
+Phase 2: Create the complete project structure and database model.
+
+Phase 3: Implement user authentication and server-side authorization.
+
+Phase 4: Implement administrator password verification and the Panel locking mechanism.
+
+Phase 5: Implement persistent APK storage and validated uploads.
+
+Phase 6: Implement the Panel publishing workflow.
+
+Phase 7: Implement the submission approval, rejection, correction-message, and resubmission workflows.
+
+Phase 8: Implement the Apps library and authenticated APK downloads.
+
+Phase 9: Implement user submission tracking and notifications.
+
+Phase 10: Apply the final responsive UI and accessibility improvements.
+
+Phase 11: Run the required tests, fix defects, and verify important security boundaries.
+
+Phase 12: Provide setup, testing, and deployment instructions.
+
+Do not stop after completing an early phase.
+
+# 20. FINAL ACCEPTANCE CRITERIA
+
+The project is complete only when the following essential workflow works end to end:
+
+A visitor opens the website and sees Panel, Apps, and Add Apps.
+
+A user creates an email account and verifies the address.
+
+The user submits an APK through Add Apps.
+
+The real APK is stored privately and the submission is saved in the database.
+
+The administrator enters the correct password and opens Panel.
+
+The administrator sees the actual submission in Game Approvals.
+
+The administrator can approve it, reject it, or send a custom message requesting corrections.
+
+If approved, the game appears in Apps and becomes available for authenticated downloads.
+
+If corrections are requested, the user receives the message, replaces the APK, and submits it again.
+
+A visitor who clicks Download APK must authenticate before receiving the actual published APK.
+
+The administrator's Panel is locked whenever they leave the administration area and requires the password again when they return.
+
+All important information persists correctly across refreshes and future visits.
+
+No ordinary user can bypass the server-side authorization controls to publish games or access private files.
+
+The website has no deliberately fake controls, mock production records, placeholder download behavior, or unimplemented core functionality.
+
+**Start building the complete application now. Prioritize real functionality, secure backend implementation, persistent storage, and tested workflows over visual appearance. Do not stop at a design preview.**
